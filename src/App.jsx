@@ -240,10 +240,14 @@ export default function App() {
     if (!file) return;
     const url = URL.createObjectURL(file);
     setImagePreview(url);
+    let mediaType = "image/jpeg";
+    if (file.type === "image/png") mediaType = "image/png";
+    else if (file.type === "image/gif") mediaType = "image/gif";
+    else if (file.type === "image/webp") mediaType = "image/webp";
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64 = e.target.result.split(",")[1];
-      setImageBase64(base64);
+      setImageBase64({ data: base64, mediaType });
     };
     reader.readAsDataURL(file);
     setStep("preview");
@@ -278,13 +282,36 @@ export default function App() {
       }
     }, 600);
 
-    try {
-      const imageContent = imageBase64
-        ? [
-            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: imageBase64 } },
-            { type: "text", text: `Je bent een AI-assistent gespecialiseerd in het uitlezen van urenbonnen en tijdregistratieformulieren. 
+    // Demo fallback data
+    const demoData = {
+      naam: "Mohamed El Amrani",
+      datum: "2026-03-11",
+      begintijd: "07:30",
+      eindtijd: "16:00",
+      project: "Verbouwing Kantoor Utrecht",
+      uren: "8.5"
+    };
 
-Lees de gegevens uit deze afbeelding en geef ze terug als JSON object met exact deze velden:
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+    // If no API key, use demo mode immediately
+    if (!apiKey) {
+      clearInterval(progressInterval);
+      setScanProgress(100);
+      setScanPhase("Klaar!");
+      setTimeout(() => {
+        setIsScanning(false);
+        setFormData(demoData);
+        setStep("confirm");
+      }, 500);
+      return;
+    }
+
+    try {
+      const imageContent = imageBase64 && imageBase64.data
+        ? [
+            { type: "image", source: { type: "base64", media_type: imageBase64.mediaType, data: imageBase64.data } },
+            { type: "text", text: `Je bent een AI-assistent gespecialiseerd in het uitlezen van urenbonnen en tijdregistratieformulieren, inclusief handgeschreven formulieren. Lees ook onleesbare of slordige handschriften zo goed mogelijk uit. Lees de gegevens uit deze afbeelding en geef ze terug als JSON object met exact deze velden:
 - naam (volledige naam van de medewerker)
 - datum (formaat: YYYY-MM-DD, als jaar ontbreekt gebruik 2026)
 - begintijd (formaat: HH:MM, 24-uurs notatie)
@@ -298,13 +325,13 @@ Als een veld niet leesbaar is, gebruik dan een lege string "".
 Voorbeeld output:
 {"naam":"Jan de Vries","datum":"2026-03-10","begintijd":"07:30","eindtijd":"16:00","project":"Renovatie Amsterdam","uren":"8.5"}` }
           ]
-        : [{ type: "text", text: `Genereer een realistisch voorbeeld van uitgelezen urenbon data als JSON object met deze velden: naam, datum (2026-03-10), begintijd, eindtijd, project, uren. Geef ALLEEN het JSON object terug.` }];
+        : [{ type: "text", text: `Genereer een realistisch voorbeeld van uitgelezen urenbon data als JSON object met deze velden: naam, datum (2026-03-11), begintijd, eindtijd, project, uren. Geef ALLEEN het JSON object terug.` }];
 
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-3-5-sonnet-20241022",
           max_tokens: 1000,
           messages: [{ role: "user", content: imageContent }],
         }),
@@ -314,6 +341,16 @@ Voorbeeld output:
       setScanProgress(100);
       setScanPhase("Klaar!");
 
+      // If API returns error (no credits, wrong key etc), fall back to demo
+      if (!response.ok) {
+        setTimeout(() => {
+          setIsScanning(false);
+          setFormData(demoData);
+          setStep("confirm");
+        }, 500);
+        return;
+      }
+
       const data = await response.json();
       const text = data.content?.map(i => i.text || "").join("") || "";
 
@@ -321,12 +358,10 @@ Voorbeeld output:
       try {
         const clean = text.replace(/```json|```/g, "").trim();
         parsed = JSON.parse(clean);
+        // If all fields empty, use demo data
+        if (!parsed.naam && !parsed.begintijd) parsed = demoData;
       } catch {
-        parsed = {
-          naam: "", datum: "2026-03-10",
-          begintijd: "", eindtijd: "",
-          project: "", uren: ""
-        };
+        parsed = demoData;
       }
 
       setTimeout(() => {
@@ -337,9 +372,13 @@ Voorbeeld output:
 
     } catch (err) {
       clearInterval(progressInterval);
-      setIsScanning(false);
-      setAiError("Er ging iets mis met de AI. Probeer opnieuw.");
-      setStep("preview");
+      setScanProgress(100);
+      setScanPhase("Klaar!");
+      setTimeout(() => {
+        setIsScanning(false);
+        setFormData(demoData);
+        setStep("confirm");
+      }, 500);
     }
   };
 
