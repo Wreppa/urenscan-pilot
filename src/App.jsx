@@ -292,21 +292,6 @@ export default function App() {
       uren: "8.5"
     };
 
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-    // If no API key, use demo mode immediately
-    if (!apiKey) {
-      clearInterval(progressInterval);
-      setScanProgress(100);
-      setScanPhase("Klaar!");
-      setTimeout(() => {
-        setIsScanning(false);
-        setFormData(demoData);
-        setStep("confirm");
-      }, 500);
-      return;
-    }
-
     try {
       const imageContent = imageBase64 && imageBase64.data
         ? [
@@ -327,9 +312,9 @@ Voorbeeld output:
           ]
         : [{ type: "text", text: `Genereer een realistisch voorbeeld van uitgelezen urenbon data als JSON object met deze velden: naam, datum (2026-03-11), begintijd, eindtijd, project, uren. Geef ALLEEN het JSON object terug.` }];
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/scan", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-3-5-sonnet-20241022",
           max_tokens: 1000,
