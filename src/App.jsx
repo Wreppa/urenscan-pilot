@@ -312,9 +312,15 @@ Voorbeeld output:
           ]
         : [{ type: "text", text: `Genereer een realistisch voorbeeld van uitgelezen urenbon data als JSON object met deze velden: naam, datum (2026-03-11), begintijd, eindtijd, project, uren. Geef ALLEEN het JSON object terug.` }];
 
-      const response = await fetch("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+  },
+        
         body: JSON.stringify({
           model: "claude-3-5-sonnet-20241022",
           max_tokens: 1000,
